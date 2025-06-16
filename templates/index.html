@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Real Time Cricket Commentary Generation Using NLP</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: url('/static/images/screen.jpg') no-repeat center center fixed; 
+    background-size: cover;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.5); 
+            border-radius: 10px;
+            padding: 30px;
+            max-width: 1200px;
+            margin: auto;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        h1 {
+            text-align: center;
+            color: #0077cc;
+        }
+        label {
+            display: block;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        .btn {
+            margin-top: 20px;
+            background-color: #0077cc;
+            color: white;
+            padding: 10px;
+            width: 100%;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .output {
+            margin-top: 25px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-left: 5px solid #0077cc;
+            border-radius: 5px;
+        }
+        .summary {
+            font-style: italic;
+            color: #666;
+        }
+        .screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #ff9933, white, #138808); 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: transform 1s ease-in-out;
+        }
+        .screen.closed {
+            transform: translateX(0);
+        }
+        .screen.open {
+            transform: translateX(-100%);
+        }
+        .screen-content {
+            color: white;
+            text-align: center;
+        }
+        .gift-image {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            height: 600px;
+            background: url('/static/images/gift.png') no-repeat center center;
+            background-size: cover;
+            box-shadow: 0 0 20px 10px gold;
+            
+            z-index: 10000;
+        }
+
+        @keyframes shine {
+            0%, 100% {
+                box-shadow: 0 0 20px 10px gold;
+            }
+            50% {
+                box-shadow: 0 0 40px 20px gold;
+            }
+        }
+
+        @keyframes gradient-shine {
+            0% {
+                background: linear-gradient(45deg, rgba(255, 215, 0, 0.5), transparent);
+                background-size: 200% 200%;
+                background-clip: padding-box;
+            }
+            50% {
+                background: linear-gradient(45deg, rgba(255, 215, 0, 0.8), transparent);
+                background-size: 200% 200%;
+                background-clip: padding-box;
+            }
+            100% {
+                background: linear-gradient(45deg, rgba(255, 215, 0, 0.5), transparent);
+                background-size: 200% 200%;
+                background-clip: padding-box;
+            }
+        }
+        .slideshow {
+            display: flex;
+            overflow: hidden;
+            width: 100%;
+            max-width: 700px;
+            margin: 20px auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .gift-image {
+        position: fixed;
+        top: 50%;
+        left: -200px; /* Start off-screen */
+        transform: translateY(-50%);
+        width: 200px;
+        height: 300px;
+        background: url('/static/images/gift.png') no-repeat center center;
+        background-size: cover;
+        z-index: 10000;
+        animation: move-gift 10s linear infinite, fade-in-out 10s ease-in-out infinite;
+    }
+
+    @keyframes move-gift {
+        0% {
+            left: -200px; 
+        }
+        50% {
+            left: 50%; 
+        }
+        100% {
+            left: 100%; 
+        }
+    }
+
+    @keyframes fade-in-out {
+        0%, 100% {
+            opacity: 0;
+        }
+        25%, 75% {
+            opacity: 1;
+        }
+    }
+        .slideshow-track {
+            display: flex;
+            animation: slide-left 10s linear infinite;
+        }
+
+        .slideshow img {
+            width: 100%;
+            flex-shrink: 0;
+        }
+
+        @keyframes slide-left {
+            0% {
+                transform: translateX(0);
+            }
+            100% {
+                transform: translateX(-500%);
+            }
+        }
+        .meter-container {
+            position: relative;
+            width: 200px;
+            height: 100px;
+            margin: 20px auto;
+        }
+        .meter {
+            width: 100%;
+            height: 100%;
+            background: conic-gradient(
+                #f44336 0% 33%, 
+                #ffc107 33% 66%, 
+                #4caf50 66% 100% 
+            );
+            border-radius: 100px 100px 0 0;
+            transform: rotate(-90deg);
+        }
+        .needle {
+            position: absolute;
+            width: 2px;
+            height: 100px;
+            background: black;
+            top: 50%;
+            left: 50%;
+            transform-origin: bottom;
+            transform: rotate(0deg);
+            transition: transform 0.5s ease-in-out;
+        }
+        .bar-graph {
+            margin-top: 30px;
+        }
+    </style>
+    
+    <script>
+       function startRecognition(inputId) {
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            document.getElementById(inputId).value = transcript;
+        };
+
+        recognition.onerror = (event) => {
+            alert('Speech recognition error: ' + event.error);
+        };
+
+        recognition.start();
+    }
+            
+        
+    </script>
+</head>
+<body>
+    
+    <div class="container">
+        <h1>Real Time Cricket Commentary Generation Using NLP</h1>
+        <div class="slideshow">
+            <div class="slideshow-track">
+                <img src="/static/images/slide1.jpg" alt="Slide 1">
+                <img src="/static/images/slide2.jpg" alt="Slide 2">
+                <img src="/static/images/slide3.jpg" alt="Slide 3">
+                <img src="/static/images/slide4.jpg" alt="Slide 4">
+                <img src="/static/images/slide5.jpg" alt="Slide 5">
+                <img src="/static/images/slide1.jpg" alt="Slide 1">
+            </div>
+        </div>
+        <form method="POST">
+            
+            <label>Score</label>
+            <select name="score">
+                <option></option><option>ONE</option><option>TWO</option><option>THREE</option><option>FOUR</option><option>SIX</option><option>OUT</option><option>WIDE</option><option>NO RUN</option>
+            </select><br>
+    
+            <label>Shot Type:</label>
+            <select name="shot">
+                <option>Pull Shot</option><option>Cut Shot</option><option>Flick</option><option>Drive</option><option>Sweep</option><option>Slog & Scoop</option>
+            </select><br>
+    
+            <label>Ball Type:</label>
+            <select name="ball">
+                <option>Swing</option><option>Slower Ball</option><option>Full Toss</option><option>Spin</option><option>Wide Ball</option>
+            </select><br>
+    
+            <label>Length:</label>
+            <select name="length">
+                <option>Yorker Length</option><option>Full Length</option><option>Short Length</option><option>Good Length</option>
+            </select><br>
+    
+            <label>Line:</label>
+            <select name="line">
+                <option>Off Stump</option><option>Middle Stump</option><option>Leg Stump</option>
+            </select><br>
+    
+            <label>Wagon Wheel:</label>
+            <select name="wagon">
+                <option>Mid Wicket</option><option>Third Man</option><option>Straight</option><option>Fine Leg</option><option>Cover</option><option>Square Leg</option><option>Point</option><option>Square Leg</option><option>Mid On</option>
+            </select><br><br>
+<label for="batsman">Batsman Name:</label>
+<div style="display: flex; align-items: center;">
+    <input type="text" name="batsman" id="batsman" required>
+    <button type="button" onclick="startRecognition('batsman')" style="margin-left: 10px;">🎤</button>
+</div>
+
+<label for="bowler">Bowler Name:</label>
+<div style="display: flex; align-items: center;">
+    <input type="text" name="bowler" id="bowler" required>
+    <button type="button" onclick="startRecognition('bowler')" style="margin-left: 10px;">🎤</button>
+</div>
+
+            <label for="lang">Translate Commentary (Optional):</label>
+            <select name="lang">
+                <option value="">English (Default)</option>
+                <option value="ta">Tamil</option>
+                <option value="hi">Hindi</option>
+                <option value="te">Telugu</option>
+                <option value="ml">Malayalam</option>
+                <option value="kn">Kannada</option>
+                <option value="bn">Bengali</option>
+                <option value="gu">Gujarati</option>
+                <option value="mr">Marathi</option>
+                <option value="pa">Punjabi</option>
+                <option value="ur">Urdu</option>
+                <option value="or">Odia</option>
+                <option value="as">Assamese</option>
+                <option value="ne">Nepali</option>
+                <option value="si">Sinhala</option>
+                <option value="sd">Sindhi</option>
+                <option value="ta-LK">Tamil (Sri Lanka)</option>
+                <option value="zh">Chinese</option>
+                <option value="fr">French</option>
+                <option value="es">Spanish</option>
+                <option value="de">German</option>
+                <option value="it">Italian</option>
+                <option value="pt">Portuguese</option>
+                <option value="ru">Russian</option>
+                <option value="ja">Japanese</option>
+                <option value="ko">Korean</option>
+                <option value="ar">Arabic</option>
+                <option value="tr">Turkish</option>
+                <option value="vi">Vietnamese</option>
+                <option value="th">Thai</option>
+            </select>
+            <button class="btn" type="submit">Generate Commentary</button>
+        </form>
+
+        {% if commentary %}
+        <div class="output">
+            <h3>Commentary:</h3>
+            <p>{{ commentary }}</p>
+            <audio controls>
+                <source src="/static/commentary.mp3" type="audio/mpeg">
+                Your browser does not support the audio element.
+            </audio>
+            <h4>Sentiment:</h4>
+            <p>{{ sentiment }} </p>
+
+            <label for="sentiment-meter">Sentiment Score:</label>
+            <meter id="sentiment-meter" value="{{ sentiment_score }}" min="-1" max="1" low="-0.5" high="0.5" optimum="1">
+                {{ sentiment_score }}
+            </meter>
+            <p>Score: {{ sentiment_score }}</p>
+
+
+            {% if summary %}
+                <div class="summary">
+                    <h4>Over Summary:</h4>
+                    <p>{{ summary }}</p>
+                </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>
